@@ -18,6 +18,13 @@
 #include "surfaceflags.h"
 #include "server.h"
 
+static int (*trap_Argv_)();
+qboolean ConsoleCommand(){
+	char cmd[MAX_TOKEN_CHARS];
+	trap_Argv_(0, cmd, 1024);
+	Com_Printf("Unknown command \"%s\"\n", cmd);
+}
+
 //hardcode patching it to 0x20 = 32 = CONTENTS_WATER
 //which takes damage (from game without having to alter the way it works and you have no annoying blockers
 //uhm might have to set 256 etc too
@@ -257,11 +264,4 @@ void *Sys_LoadDll(char *name, char *dest, int (**entryPoint)(int, ...), int (*sy
 		COD_Destructor();
 	#endif
 	return ret;
-}
-
-static int (*trap_Argv_)();
-qboolean ConsoleCommand(){
-	char cmd[MAX_TOKEN_CHARS];
-	trap_Argv_(0, cmd, 1024);
-	Com_Printf("Unknown command \"%s\"\n", cmd);
 }
