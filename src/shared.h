@@ -130,6 +130,8 @@ typedef vec_t vec5_t[5];
 #define qtrue 1
 #define qfalse 0
 
+#define MAX_MSGLEN 0x4000
+
 typedef int clipHandle_t;
 
 int     _Q_rand( int *seed );

@@ -18,6 +18,13 @@
 #include "surfaceflags.h"
 #include "server.h"
 
+static int (*trap_Argv_)();
+qboolean ConsoleCommand(){
+	char cmd[MAX_TOKEN_CHARS];
+	trap_Argv_(0, cmd, 1024);
+	Com_Printf("Unknown command \"%s\"\n", cmd);
+}
+
 //hardcode patching it to 0x20 = 32 = CONTENTS_WATER
 //which takes damage (from game without having to alter the way it works and you have no annoying blockers
 //uhm might have to set 256 etc too
@@ -90,6 +97,9 @@ void set_game_ptr( void *ret ) {
 	int cont = (int)dlsym(ret, "G_SetClientContents");
 	__jmp(cont, (int)G_SetPlayerContents);
 	
+	qboolean ConsoleCommand();
+	__call(GAME("vmMain") + 0xDC, (int)ConsoleCommand);
+	trap_Argv_ = (int(*)(int, int, int))GAME("trap_Argv");
 	
 	int h66 = (int)dlsym(ret, "ClientEndFrame") + 0x173; //patch contents
 	__nop(h66, h66+0xa);
