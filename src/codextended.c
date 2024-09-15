@@ -374,11 +374,10 @@ void CoDExtended() {
 	void SV_Frame(int);
 	__call(0x806D0E4, (int)SV_Frame);
 
-	void (*SV_SendClientGameState)(client_t*);
-	//__call(0x8087A1E, (int)SV_SendClientGameState);
-	//__call(0x80876B1, (int)SV_SendClientGameState);
-	//__call(0x8087447, (int)SV_SendClientGameState);
-	//crashes
+	void (*SV_ExecuteClientMessage)(client_t*, msg_t*);
+	void custom_SV_ExecuteClientMessage(client_t* cl, msg_t* msg); // Forward declaration
+	SV_ExecuteClientMessage = custom_SV_ExecuteClientMessage;
+	__jmp(0x80872EC, (int)SV_ExecuteClientMessage);
 
 	const char *__cdecl FS_ReferencedPakChecksums();
 	const char *__cdecl FS_ReferencedPakNames();

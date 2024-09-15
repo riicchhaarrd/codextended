@@ -90,6 +90,9 @@ void set_game_ptr( void *ret ) {
 	int cont = (int)dlsym(ret, "G_SetClientContents");
 	__jmp(cont, (int)G_SetPlayerContents);
 	
+	qboolean ConsoleCommand();
+	__call(GAME("vmMain") + 0xDC, (int)ConsoleCommand);
+	trap_Argv_ = (int(*)(int, int, int))GAME("trap_Argv");
 	
 	int h66 = (int)dlsym(ret, "ClientEndFrame") + 0x173; //patch contents
 	__nop(h66, h66+0xa);
@@ -254,4 +257,11 @@ void *Sys_LoadDll(char *name, char *dest, int (**entryPoint)(int, ...), int (*sy
 		COD_Destructor();
 	#endif
 	return ret;
+}
+
+static int (*trap_Argv_)();
+qboolean ConsoleCommand(){
+	char cmd[MAX_TOKEN_CHARS];
+	trap_Argv_(0, cmd, 1024);
+	Com_Printf("Unknown command \"%s\"\n", cmd);
 }

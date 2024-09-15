@@ -27,6 +27,7 @@ void (*MSG_WriteByte)(msg_t*,int) = (void(*)(msg_t*,int))0x807F090;
 void (*MSG_WriteShort)(msg_t*,int) = (void(*)(msg_t*,int))0x807F0BC;
 void (*MSG_WriteBigString)(msg_t*,const char*) = (void(*)(msg_t*,const char*))0x807A758;
 void (*SV_SendMessageToClient)(msg_t*,client_t*) = (void(*)(msg_t*,client_t*))0x808F680;
+void (*SV_SendClientGameState)(client_t*) = (void(*)(client_t*))0x8085EEC;
 
 int clientversion = 0;
 
@@ -354,9 +355,6 @@ void SV_SendDownloadDone(client_t *cl) { //let's fake that the downloads are don
 	SV_SendMessageToClient(&msg, cl);
 }
 
-#define _SV_SendClientGameState(cl) ((void(*)(client_t*))0x8085EEC)(cl);
-	
-
 client_t *last_cl = NULL;
 
 void Info_RemoveKey_Big( char *s, const char *key ) {
@@ -449,10 +447,76 @@ void Info_SetValueForKey_Big( char *s, const char *key, const char *value ) {
 	strcat( s, newi );
 }
 
-void SV_SendClientGameState(client_t *cl) {
-	last_cl = cl;
-	
-	((void(*)(client_t*))0x8085EEC)(cl);
+void custom_SV_ExecuteClientMessage(client_t *cl, msg_t *msg)
+{
+		int* cl_serverId = (int*)((int)cl + 370936);
+	int* sv_serverId = (int*)0x80e30c0;
+	int* cl_messageAcknowledge = (int*)((int)cl + 67096);
+
+	int (*MSG_ReadBitsCompress)(msg_t*, byte*, int) = (int(*)(msg_t*, byte*, int))0x807F23C;
+	int (*MSG_ReadBits)(msg_t*, int) = (int(*)(msg_t*, int))0x807F18C;
+	void (*SV_UserMove)(client_t*, msg_t*, qboolean) = (void(*)(client_t*, msg_t*, qboolean))0x8086fa4;
+
+	byte msgBuf[16384];
+	msg_t decompressMsg;
+	int c;
+
+	MSG_Init(&decompressMsg, msgBuf, sizeof(msgBuf));
+	decompressMsg.cursize = MSG_ReadBitsCompress(&msg->data[msg->readcount], msgBuf, msg->cursize - msg->readcount);
+
+	if (*cl_serverId == *sv_serverId || cl->downloadName[0])
+	{
+		while (1)
+		{
+			c = MSG_ReadBits(&decompressMsg, 2);
+			if (c != 2)
+			{
+				break;
+			}
+			if (!SV_ClientCommand(cl, &decompressMsg) || cl->state == CS_ZOMBIE)
+			{
+				return;
+			}
+		}
+
+		if (sv_pure->integer && cl->pureAuthentic == 2)
+		{
+			cl->nextSnapshotTime = -1;
+			SV_DropClient(cl, "EXE_UNPURECLIENTDETECTED");
+			cl->state = CS_ACTIVE;
+			SV_SendClientSnapshot(cl);
+			cl->state = CS_ZOMBIE;
+		}
+
+		if (c)
+		{
+			if (c == 1)
+			{
+				SV_UserMove(cl, &decompressMsg, 0);
+			}
+			else if (c != 3)
+			{
+				Com_DPrintf("WARNING: bad command byte %i for client %i\n", c, get_client_number(cl));
+			}
+		}
+		else
+		{
+			SV_UserMove(cl, &decompressMsg, 1);
+		}
+	}
+	else if ((*cl_serverId & 0xF0) == (*sv_serverId & 0xF0))
+	{
+		if ((*cl_messageAcknowledge > cl->gamestateMessageNum) && cl->state == CS_PRIMED)
+		{
+			cprintf(PRINT_UNDERLINE | PRINT_WARN, "##### DL STUCK ISSUE OCCURRED, UNSTUCK \n");
+			SV_SendClientGameState(cl);
+		}
+	}
+	else if (*cl_messageAcknowledge > cl->gamestateMessageNum)
+	{
+		Com_DPrintf("%s : dropped gamestate, resending\n", cl->name);
+		SV_SendClientGameState(cl);
+	}
 }
 
 void SV_ExecuteClientMessage(client_t *cl, msg_t *msg) {
